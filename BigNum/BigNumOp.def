@@ -1,0 +1,14 @@
+LIBRARY  "BigNumOp"
+EXPORTS
+	initByInt
+	initByBigNum
+	addByBigNum
+	addByInt
+	subByBigNum
+	subByInt
+	mulByBigNum
+	mulByInt
+	divByBigNum
+	divByInt
+	modByBigNum
+	modByInt
