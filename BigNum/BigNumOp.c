@@ -569,6 +569,15 @@ BigNumber SubModProc(BigNumber* BN1,BigNumber* BN2,BigNumber* N)
 }
 
 /****************************************************************************************
+一、RSA密钥生成的步骤:
+第一步，随机选择两个不相等的质数p和q(实际应用中，这两个质数越大，就越难破解);
+第二步，计算p和q的乘积n(n的二进制长度就是密钥长度);
+第三步，计算n的欧拉函数φ(n);(根据函数：　φ(n) = (p-1)(q-1));
+第四步，随机选择一个整数e，条件是1< e < φ(n)，且e与φ(n) 互质;
+第五步，计算e对于φ(n)的模反元素d.所谓"模反元素"就是指有一个整数d，可以使得ed被φ(n)除的余数为1。即ed ≡ 1 (mod φ(n));
+第六步，将n和e封装成公钥，n和d封装成私钥。
+
+求第五步中的模反元素，可以使用下面的欧几里得算法（辗转相除法）：
 Euc,欧几里德算法求解同余方程,求不定方程ax-by=1的最小整数解
 返回值：X,满足：BigNumSrc1*X mod A=1
 ****************************************************************************************/
@@ -625,3 +634,106 @@ BigNumber Euc(const BigNumber* BigNumSrc1,const BigNumber* BigNumSrc2)
 	
 	return X;
 }
+
+/****************************************************************************************
+模重复平方算法（非递归）实现思路（b^n mod m）：
+(1) a初始化为1，将指数n转换为二进制，对二进制的每一位，进行判断;
+注：二进制位可以从高位到低位，或低位到高位的顺序 来判断，本例是从高位开始判断。
+(2) b = b*b (mod m);
+(3) 如果为1,则a = a*b (mod m); 否则，a不变;
+更多详细解释参见：http://blog.csdn.net/yxtxiaotian/article/details/52464496
+非大数，低位开始判断的C代码可以参见：https://github.com/yangxt225/powerMod
+
+****************************************************************************************
+// 传入output参数，用于封装动态库是调用取得结果。
+RsaTransTest,反复平方算法进行幂模运算,求乘方的模
+N = BigNumN,A = BigNumSrc1,B = BigNumSrc2
+返回值：X=N^A MOD B
+****************************************************************************************/
+int RsaTransTest(const BigNumber* BigNumN,const BigNumber* BigNumSrc1,const BigNumber* BigNumSrc2, BigNumber* output)
+{
+    BigNumber X,Y,Temp;
+	int i,j,k;
+	unsigned long n;
+	unsigned long num;
+
+	// 指数的二进制实际有效位
+	k = BigNumSrc1->m_nLength*32 - 32; 		
+	num = BigNumSrc1->m_ulValue[BigNumSrc1->m_nLength - 1];
+	while(num)
+	{
+		num = num>>1;
+		k++;
+	}
+	
+	// X = N
+	initByBigNum(&X,BigNumN);
+	
+	/* i初始化为k-2,其一:大数的二进制下标需要减1, 
+	其二:大数的最高二进制位(即大数二进制的第k-1位)一定为1.
+	i为什么初始化为k-2？？
+	*/
+	for(i = k-2;i >= 0;i--)
+	{
+		/*大数最高位运算 b=b*b Mod m;
+		相当于：X = X*X Mod BigNumSrc2;
+		*/ 
+		Y = mulByInt(&X,X.m_ulValue[X.m_nLength-1]);
+		Y = modByBigNum(&Y,BigNumSrc2);
+
+		// 除去最高位(n=1)，再对大数的每一位，执行运算 b*b Mod m
+        for(n = 1;n < X.m_nLength;n++)
+		{   
+			/*对Y，扩大32倍（大数为32进制）,也即增多1位。
+			因为根据运算规则，从高位继承而来值(Y值)，在低位的时候需要扩展为(进制的倍数)32倍。
+			*/ 
+			for(j = Y.m_nLength;j > 0;j--)
+				Y.m_ulValue[j] = Y.m_ulValue[j - 1];
+			Y.m_ulValue[0] = 0;
+			Y.m_nLength++;
+			// 
+			Temp = mulByInt(&X,X.m_ulValue[X.m_nLength-n-1]);
+			Y = addByBigNum(&Y,&Temp);
+			Y = modByBigNum(&Y,BigNumSrc2);
+		}
+		// 执行赋值 b=b*b Mod m
+		initByBigNum(&X,&Y);
+		
+		/* if条件判断：
+			"i>>5" i表示二进制位的序号，右移5位(除以32)得到N,表示大数值的第N位(Dec).
+			"i&31" 对取到的大数值第N位的数值，再取其二进制形式的第"i&31"位.
+			判断是否为1，如果是，执行运算.
+		*/
+		if((BigNumSrc1->m_ulValue[i>>5]>>(i&31)) & 1)
+		{
+			/* 执行运算 a=a*b Mod m;
+			相当于：X = BigNumN*X Mod BigNumSrc2;
+			*/
+			// 和BigNumN相乘？？
+			Y = mulByInt(BigNumN,X.m_ulValue[X.m_nLength-1]);
+			Y = modByBigNum(&Y,BigNumSrc2);
+
+            for(n = 1;n < X.m_nLength;n++)
+			{          
+			    for(j = Y.m_nLength;j > 0;j--)
+					Y.m_ulValue[j] = Y.m_ulValue[j-1];
+			    Y.m_ulValue[0] = 0;
+			    Y.m_nLength++;
+				// 
+				Temp = mulByInt(BigNumN,X.m_ulValue[X.m_nLength-n-1]);
+				Y = addByBigNum(&Y,&Temp);
+				Y = modByBigNum(&Y,BigNumSrc2);
+			}
+			// 又是存放在X ？？
+		    initByBigNum(&X,&Y);
+		}
+	}
+	
+	initByBigNum(output, &X);
+    return 0;
+}
+
+
+
+
+

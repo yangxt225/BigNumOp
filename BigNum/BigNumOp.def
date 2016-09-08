@@ -12,3 +12,4 @@ EXPORTS
 	divByInt
 	modByBigNum
 	modByInt
+	RsaTransTest

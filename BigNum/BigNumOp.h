@@ -71,3 +71,8 @@ BigNumber SubModProc(BigNumber* BN1,BigNumber* BN2,BigNumber* N);
 
 //Euc,欧几里德算法求解同余方程,求不定方程ax-by=1的最小整数解,返回值：X,满足：NX mod A=1
 BigNumber Euc(const BigNumber* BigNumSrc1,const BigNumber* BigNumSrc2);
+
+/*RsaTransTest,反复平方算法进行幂模运算,求乘方的模
+N = BigNumN,A = BigNumSrc1,B = BigNumSrc2
+返回值：X=N^A MOD B */
+int RsaTransTest(const BigNumber* BigNumN,const BigNumber* BigNumSrc1,const BigNumber* BigNumSrc2, BigNumber* output);
